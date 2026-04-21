@@ -1,11 +1,21 @@
 import express from "express";
 import cors from "cors";
 import { z } from "zod";
+import dotenv from "dotenv";
 import { PrismaClient, ResourceStatus, ResourceType, Role } from "@prisma/client";
+
+dotenv.config({ path: ".env.local" });
+dotenv.config();
+if (!process.env.POSTGRES_PRISMA_URL && process.env.DATABASE_URL) {
+  process.env.POSTGRES_PRISMA_URL = process.env.DATABASE_URL;
+}
 
 const PORT = Number(process.env.PORT ?? 3001);
 const app = express();
-const prisma = new PrismaClient();
+const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL;
+const prisma = dbUrl
+  ? new PrismaClient({ datasources: { db: { url: dbUrl } } })
+  : new PrismaClient();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -20,6 +30,16 @@ function getRole(req: express.Request) {
 }
 
 const stageTags = ["孕早期", "孕中期", "孕晚期", "新生儿", "婴幼儿"];
+const RESOURCES_CACHE_TTL_MS = 30_000;
+let resourcesCache: { at: number; rows: Array<{
+  id: string;
+  title: string;
+  coverImageUrl: string | null;
+  tags: string[];
+  content: string | null;
+  estimatedTime: number | null;
+  author: { name: string };
+}> } | null = null;
 
 function estimateReadTime(content?: string | null, estimated?: number | null) {
   if (estimated && Number.isFinite(estimated)) return `${estimated} min`;
@@ -59,12 +79,17 @@ app.get("/api/resources", async (req, res) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const filter = String(req.query.filter ?? "").trim();
   try {
-    const rows = await prisma.resource.findMany({
-      where: { status: ResourceStatus.PUBLISHED },
-      include: { author: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 300,
-    });
+    const now = Date.now();
+    const cacheValid = resourcesCache && now - resourcesCache.at < RESOURCES_CACHE_TTL_MS;
+    const rows = cacheValid
+      ? resourcesCache.rows
+      : await prisma.resource.findMany({
+          where: { status: ResourceStatus.PUBLISHED },
+          include: { author: { select: { name: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 300,
+        });
+    if (!cacheValid) resourcesCache = { at: now, rows };
     let list = rows.map(toApiResource);
     if (filter && filter !== "全部") {
       list = list.filter((r) => r.filterTag === filter || r.tags.includes(filter));
@@ -187,6 +212,7 @@ app.post("/api/submissions", async (req, res) => {
       authorId: doctor.id,
     },
   });
+  resourcesCache = null;
   res.json({ item: { id: created.id, status: "pending" } });
 });
 
@@ -239,6 +265,7 @@ app.post("/api/admin/reviews/:id/approve", async (req, res) => {
       comments: parsed.data.note,
     },
   });
+  resourcesCache = null;
   res.json({ ok: true, submission: { id, status: "approved" } });
 });
 
@@ -270,6 +297,7 @@ app.post("/api/admin/reviews/:id/reject", async (req, res) => {
       comments: parsed.data.note,
     },
   });
+  resourcesCache = null;
   res.json({ ok: true, submission: { id, status: "rejected" } });
 });
 

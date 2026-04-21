@@ -6,8 +6,24 @@ import { cn } from "../lib/utils";
 import { useSearchParams } from "react-router-dom";
 import { listResources, getFavoriteIds, addFavorite, removeFavorite, type ApiResource } from "../lib/api";
 import { getStageCover, withCoverFallback } from "../lib/covers";
+import { mockResources } from "../data/mockResources";
 
 const timelineFilters = ["全部", "孕早期", "孕中期", "孕晚期", "新生儿", "婴幼儿"];
+
+function getMockFallback(query: string, activeFilter: string): ApiResource[] {
+  const q = query.trim().toLowerCase();
+  return mockResources
+    .filter((r) => {
+      const matchesFilter = activeFilter === "全部" || r.filterTag === activeFilter || r.tags.includes(activeFilter);
+      const matchesQuery =
+        q === "" ||
+        r.title.toLowerCase().includes(q) ||
+        r.tags.some((t) => t.toLowerCase().includes(q)) ||
+        r.author.toLowerCase().includes(q);
+      return matchesFilter && matchesQuery;
+    })
+    .map((r) => ({ ...r, id: String(r.id) }));
+}
 
 export function Home() {
   const [activeFilter, setActiveFilter] = useState("全部");
@@ -15,23 +31,51 @@ export function Home() {
   const [selectedArticle, setSelectedArticle] = useState<ApiResource | null>(null);
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
-  const [resources, setResources] = useState<ApiResource[]>([]);
+  const [resources, setResources] = useState<ApiResource[]>(
+    () => mockResources.map((r) => ({ ...r, id: String(r.id) })),
+  );
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
   const [toast, setToast] = useState<null | { text: string }>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   useEffect(() => {
     let alive = true;
     setIsLoading(true);
-    Promise.all([
+    setLoadError(null);
+    Promise.allSettled([
       listResources({ q: query, filter: activeFilter }),
       getFavoriteIds(),
     ])
-      .then(([items, favs]) => {
+      .then(([resourcesResult, favoritesResult]) => {
         if (!alive) return;
-        setResources(items);
-        setFavoriteIds(favs);
+
+        if (resourcesResult.status === "fulfilled") {
+          if (resourcesResult.value.length > 0) {
+            setResources(resourcesResult.value);
+            setLoadError(null);
+          } else {
+            // If DB temporarily returns empty, keep page usable.
+            setResources(getMockFallback(query, activeFilter));
+            setLoadError("数据库暂无可用帖子，已切换到本地示例数据。");
+          }
+        } else {
+          setLoadError("加载超时，已自动切换到本地示例数据。");
+          setResources(getMockFallback(query, activeFilter));
+          // eslint-disable-next-line no-console
+          console.error(resourcesResult.reason);
+        }
+
+        if (favoritesResult.status === "fulfilled") {
+          setFavoriteIds(favoritesResult.value);
+        } else {
+          // Favorites failure should not block resource display.
+          setFavoriteIds(new Set());
+          // eslint-disable-next-line no-console
+          console.warn("favorites load failed", favoritesResult.reason);
+        }
       })
       .finally(() => {
         if (!alive) return;
@@ -40,7 +84,7 @@ export function Home() {
     return () => {
       alive = false;
     };
-  }, [query, activeFilter]);
+  }, [query, activeFilter, retryTick]);
 
   const filteredResources = resources;
   const userLabel = useMemo(() => {
@@ -191,7 +235,70 @@ export function Home() {
       <section className="px-4 max-w-7xl mx-auto pb-24">
         <FadeInUp delay={0.2}>
           {isLoading ? (
-            <div className="text-center py-20 text-[#86868B]">正在加载科普资源...</div>
+            filteredResources.length > 0 ? (
+              <div>
+                <div className="text-center mb-6 text-sm text-[#86868B]">正在同步数据库帖子...</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[280px]">
+                  {filteredResources.map((resource) => (
+                    <div
+                      key={resource.id}
+                      onClick={() => setSelectedArticle(resource)}
+                      className={cn(
+                        "group relative overflow-hidden bento-card cursor-pointer flex flex-col",
+                        resource.colSpan,
+                      )}
+                    >
+                      <div className="absolute inset-0 w-full h-full overflow-hidden">
+                        <img
+                          src={withCoverFallback(resource.image, resource.filterTag, { id: resource.id, title: resource.title })}
+                          alt={resource.title}
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            const fallback = getStageCover(resource.filterTag);
+                            if (!img.src.endsWith(fallback)) img.src = fallback;
+                          }}
+                          className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+                      </div>
+                      <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8">
+                        <div className="flex gap-2 mb-3">
+                          {resource.tags.slice(0, 2).map((tag) => (
+                            <span key={tag} className="px-3 py-1 bg-white/20 backdrop-blur-md text-white text-xs font-medium rounded-full border border-white/20">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                        <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-white mb-4 line-clamp-2">{resource.title}</h3>
+                        <div className="flex items-center justify-between text-white/90 text-sm">
+                          <div className="flex items-center gap-1.5 font-medium">
+                            <Clock className="w-4 h-4 text-white/80" />
+                            <span>{resource.readTime} 随心读</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-20 text-[#86868B]">正在加载科普资源...</div>
+            )
+          ) : loadError ? (
+            <div className="text-center py-20">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="w-6 h-6 text-red-300" />
+              </div>
+              <h3 className="text-lg font-medium text-[#1D1D1F] mb-1">资源加载失败</h3>
+              <p className="text-[#86868B] text-sm mb-5">{loadError}</p>
+              <button
+                type="button"
+                onClick={() => setRetryTick((v) => v + 1)}
+                className="px-5 py-2.5 rounded-full bg-[#0066CC] text-white text-sm font-medium hover:bg-[#0055AA] transition-colors"
+              >
+                重新加载
+              </button>
+            </div>
           ) : filteredResources.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[280px]">
               {filteredResources.map((resource) => (

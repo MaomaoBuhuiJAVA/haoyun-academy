@@ -34,6 +34,8 @@ model User {
   resources     Resource[] // 医生发布的资源
   auditLogs     AuditLog[] // 管理员的审核记录
   createdAt     DateTime  @default(now())
+
+  @@index([role, createdAt])
 }
 
 model Resource {
@@ -52,6 +54,10 @@ model Resource {
   interactions    Interaction[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  @@index([status, createdAt])
+  @@index([authorId, status])
+  @@index([tags], type: Gin)
 }
 
 model AuditLog {
@@ -63,6 +69,9 @@ model AuditLog {
   action      String   // "APPROVED" | "REJECTED"
   comments    String?
   createdAt   DateTime @default(now())
+
+  @@index([resourceId, createdAt])
+  @@index([reviewerId, createdAt])
 }
 
 model Interaction {
@@ -73,4 +82,7 @@ model Interaction {
   actionType        String   // "VIEW" | "DOWNLOAD" | "SHARE"
   durationSeconds   Int      @default(0)
   createdAt         DateTime @default(now())
+
+  @@index([actionType, deviceFingerprint, resourceId])
+  @@index([resourceId, actionType, createdAt])
 }

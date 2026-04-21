@@ -22,20 +22,41 @@ function getUserId() {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      "x-user-id": getUserId(),
-      "x-role": getRole(),
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API_ERROR ${res.status} ${text}`);
+  const timeoutMs = 25000;
+  const maxAttempts = 2;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(path, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          "content-type": "application/json",
+          "x-user-id": getUserId(),
+          "x-role": getRole(),
+          ...(init?.headers ?? {}),
+        },
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`API_ERROR ${res.status} ${text}`);
+      }
+      return (await res.json()) as T;
+    } catch (e) {
+      clearTimeout(timer);
+      const msg = String((e as Error)?.message ?? e);
+      const isTimeout = msg.includes("aborted") || msg.includes("AbortError");
+      const isNetwork = msg.includes("fetch failed");
+      if (attempt < maxAttempts && (isTimeout || isNetwork)) continue;
+      if (isTimeout) throw new Error("API_TIMEOUT");
+      throw e;
+    }
   }
-  return (await res.json()) as T;
+
+  throw new Error("API_TIMEOUT");
 }
 
 export async function listResources(params: { q?: string; filter?: string }) {

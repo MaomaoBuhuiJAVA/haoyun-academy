@@ -1,5 +1,9 @@
 import { PrismaClient, ResourceStatus, ResourceType, Role } from "@prisma/client";
 import { seedResources } from "../server/seed";
+import dotenv from "dotenv";
+
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 const prisma = new PrismaClient();
 
