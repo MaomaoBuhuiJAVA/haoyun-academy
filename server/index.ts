@@ -11,7 +11,7 @@ if (!process.env.POSTGRES_PRISMA_URL && process.env.DATABASE_URL) {
 }
 
 const PORT = Number(process.env.PORT ?? 3001);
-const app = express();
+export const app = express();
 const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL;
 const prisma = dbUrl
   ? new PrismaClient({ datasources: { db: { url: dbUrl } } })
@@ -308,9 +308,11 @@ async function main() {
   });
 }
 
-main().catch((e) => {
-  // eslint-disable-next-line no-console
-  console.error(e);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  main().catch((e) => {
+    // eslint-disable-next-line no-console
+    console.error(e);
+    process.exit(1);
+  });
+}
 
