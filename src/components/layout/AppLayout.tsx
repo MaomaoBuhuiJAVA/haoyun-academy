@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { Navbar } from "./Navbar";
+import { BottomNav } from "./BottomNav";
 
 export function AppLayout() {
   const location = useLocation();
@@ -8,9 +9,10 @@ export function AppLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
       {!isAuthPage && <Navbar />}
-      <main className={isAuthPage ? "flex-1" : "flex-1 mt-16 pb-20"}>
+      <main className={isAuthPage ? "flex-1" : "flex-1 mt-16 pb-20 md:pb-0"}>
         <Outlet />
       </main>
+      {!isAuthPage && <BottomNav />}
     </div>
   );
 }

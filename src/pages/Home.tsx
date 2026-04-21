@@ -168,36 +168,46 @@ export function Home() {
         )}
       </AnimatePresence>
       {/* Hero Section */}
-      <section className="pt-24 pb-10 px-4 max-w-7xl mx-auto flex flex-col items-center text-center">
+      <section className="pt-20 md:pt-24 pb-8 md:pb-10 px-4 max-w-7xl mx-auto flex flex-col items-center text-center">
         <FadeInUp>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight text-[#1D1D1F] mb-6">
-            专业妇幼科普，<br className="md:hidden"/>伴您安心孕育
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-[#1D1D1F] mb-4 md:mb-6 leading-tight">
+            专业妇幼科普，<br />伴您安心孕育
           </h1>
-          <p className="text-[#86868B] text-lg md:text-xl max-w-2xl mx-auto mb-10">
+          <p className="text-[#86868B] text-base md:text-xl max-w-2xl mx-auto mb-8 md:mb-10 px-4">
             整合权威医疗资源，为每一个家庭提供科学、温暖、全周期的健康成长守护。
           </p>
         </FadeInUp>
 
         {/* Personalized strip */}
-        <FadeInUp delay={0.05} className="w-full max-w-5xl px-4 mt-2 mb-6">
-          <div className="bento-card relative overflow-hidden px-6 py-4 md:px-8 md:py-5 text-left">
-            <div className="absolute inset-0 bg-gradient-to-r from-[#E8F0FE] via-white to-[#F5F5F7]" />
-            <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full bg-[#0066CC]/10 blur-2xl" />
-            <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <div className="text-sm font-medium text-[#86868B] flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#0066CC]" />
-                  {userLabel.greet}，{userLabel.title}
-                </div>
-                <div className="text-xl md:text-2xl font-semibold tracking-tight text-[#1D1D1F] mt-1">
-                  {userLabel.subtitle}
+        <FadeInUp delay={0.05} className="w-full max-w-5xl px-2 md:px-4 mt-2 mb-6">
+          <div className="bento-card relative overflow-hidden px-5 py-5 md:px-8 md:py-6 text-left">
+            <div className="absolute inset-0 bg-gradient-to-br from-pink-50 via-white to-blue-50/30" />
+            <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full bg-pink-100/50 blur-3xl" />
+            <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-xl shrink-0">✨</div>
+                <div>
+                  <div className="text-xs font-bold text-pink-600 uppercase tracking-widest flex items-center gap-1.5">
+                    {userLabel.greet}
+                  </div>
+                  <div className="text-lg md:text-2xl font-bold text-[#1D1D1F] mt-0.5">
+                    {userLabel.title}，{userLabel.subtitle.split('，')[0]}
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="px-4 py-2 rounded-2xl bg-white/70 border border-gray-100 shadow-sm">
-                  <div className="text-xs text-[#86868B]">已收藏</div>
-                  <div className="text-lg font-semibold text-[#1D1D1F] tabular-nums">{favoriteIds.size} 篇</div>
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl bg-white/80 border border-white shadow-sm">
+                  <div className="text-[10px] font-bold text-[#86868B] uppercase tracking-wider">已收藏</div>
+                  <div className="text-base md:text-lg font-bold text-[#1D1D1F] tabular-nums">{favoriteIds.size} 篇</div>
                 </div>
+                <div className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl bg-[#0066CC] border border-blue-400 shadow-lg shadow-blue-100">
+                  <div className="text-[10px] font-bold text-blue-100 uppercase tracking-wider">今日精选</div>
+                  <div className="text-base md:text-lg font-bold text-white"> {Math.min(6, filteredResources.length)} 篇</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </FadeInUp>
                 <div className="px-4 py-2 rounded-2xl bg-white/70 border border-gray-100 shadow-sm">
                   <div className="text-xs text-[#86868B]">今日推荐</div>
                   <div className="text-lg font-semibold text-[#0066CC]">精选 {Math.min(6, filteredResources.length)}</div>
@@ -394,19 +404,19 @@ export function Home() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300, mass: 0.8 }}
-              className="fixed inset-x-0 bottom-0 top-10 md:top-8 z-[70] bg-[#F5F5F7] rounded-t-[32px] md:rounded-[32px] w-full md:max-w-3xl md:mx-auto md:my-8 overflow-hidden flex flex-col shadow-2xl origin-bottom"
+              className="fixed inset-x-0 bottom-0 top-0 md:top-8 z-[70] bg-[#F5F5F7] rounded-t-[32px] md:rounded-[32px] w-full md:max-w-3xl md:mx-auto md:my-8 overflow-hidden flex flex-col shadow-2xl origin-bottom"
             >
               {/* Header */}
-              <div className="sticky top-0 z-20 glass px-4 py-3 flex items-center justify-between border-b border-gray-200/50">
+              <div className="sticky top-0 z-20 glass px-4 py-4 md:py-3 flex items-center justify-between border-b border-gray-200/50">
                 <button 
                   type="button"
                   onClick={() => setSelectedArticle(null)}
-                  className="flex items-center gap-1 text-[#0066CC] font-medium hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-1 text-[#0066CC] font-bold hover:opacity-80 transition-opacity bg-blue-50/50 px-3 py-1.5 rounded-full"
                 >
                   <ChevronLeft className="w-5 h-5 -ml-1" />
-                  返回
+                  <span className="text-sm">返回</span>
                 </button>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 md:gap-4">
                   <button type="button" onClick={() => {
                     const element = document.createElement("a");
                     const file = new Blob([`${selectedArticle.title}\n\n${selectedArticle.content}`], {type: 'text/plain;charset=utf-8'});
@@ -415,21 +425,21 @@ export function Home() {
                     document.body.appendChild(element);
                     element.click();
                     document.body.removeChild(element);
-                  }} title="下载图文到本地(TXT)" className="text-[#1D1D1F] hover:text-[#0066CC] transition-colors">
+                  }} title="下载图文到本地(TXT)" className="p-2 text-[#1D1D1F] hover:text-[#0066CC] transition-colors bg-white rounded-full shadow-sm">
                     <Download className="w-5 h-5" />
                   </button>
-                  <button type="button" onClick={() => alert("点赞成功")} className="text-[#1D1D1F] hover:text-red-500 transition-colors">
+                  <button type="button" onClick={() => alert("点赞成功")} className="p-2 text-[#1D1D1F] hover:text-red-500 transition-colors bg-white rounded-full shadow-sm">
                     <Heart className="w-5 h-5" />
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleFavorite(selectedArticle.id)}
-                    className="text-[#1D1D1F] hover:text-[#0066CC] transition-colors"
+                    className="p-2 text-[#1D1D1F] hover:text-[#0066CC] transition-colors bg-white rounded-full shadow-sm"
                     title={favoriteIds.has(selectedArticle.id) ? "取消收藏" : "收藏"}
                   >
                     <Bookmark className={cn("w-5 h-5", favoriteIds.has(selectedArticle.id) ? "text-[#0066CC]" : "")} />
                   </button>
-                  <button type="button" onClick={(e) => handleShareClick(e, selectedArticle)} className="text-[#1D1D1F] hover:text-[#0066CC] transition-colors">
+                  <button type="button" onClick={(e) => handleShareClick(e, selectedArticle)} className="p-2 text-[#1D1D1F] hover:text-[#0066CC] transition-colors bg-white rounded-full shadow-sm">
                     <Share className="w-5 h-5" />
                   </button>
                 </div>
