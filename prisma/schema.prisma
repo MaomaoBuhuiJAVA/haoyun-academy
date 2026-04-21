@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
+}
+
+enum Role {
+  ADMIN
+  DOCTOR
+  VIEWER
+}
+
+enum ResourceType {
+  ARTICLE
+  VIDEO
+  PDF
+}
+
+enum ResourceStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  role          Role      @default(VIEWER)
+  resources     Resource[] // 医生发布的资源
+  auditLogs     AuditLog[] // 管理员的审核记录
+  createdAt     DateTime  @default(now())
+}
+
+model Resource {
+  id              String         @id @default(uuid())
+  title           String
+  summary         String?
+  coverImageUrl   String?
+  type            ResourceType
+  content         String?        @db.Text
+  tags            String[]       
+  status          ResourceStatus @default(DRAFT)
+  estimatedTime   Int?           // 预计阅读时长(分钟)
+  authorId        String
+  author          User           @relation(fields: [authorId], references: [id])
+  auditLogs       AuditLog[]
+  interactions    Interaction[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  resourceId  String
+  resource    Resource @relation(fields: [resourceId], references:[id])
+  reviewerId  String
+  reviewer    User     @relation(fields: [reviewerId], references: [id])
+  action      String   // "APPROVED" | "REJECTED"
+  comments    String?
+  createdAt   DateTime @default(now())
+}
+
+model Interaction {
+  id                String   @id @default(uuid())
+  resourceId        String
+  resource          Resource @relation(fields: [resourceId], references: [id])
+  deviceFingerprint String?
+  actionType        String   // "VIEW" | "DOWNLOAD" | "SHARE"
+  durationSeconds   Int      @default(0)
+  createdAt         DateTime @default(now())
+}
