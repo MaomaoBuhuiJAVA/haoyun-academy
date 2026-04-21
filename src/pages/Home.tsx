@@ -468,11 +468,81 @@ export function Home() {
                      </div>
                    </div>
 
-                   <article className="prose prose-lg max-w-none text-[#1D1D1F] leading-loose">
-                     {selectedArticle.content.split('。').filter(Boolean).map((para, i) => (
-                       <p key={i} className="mb-6">{para}。</p>
-                     ))}
+                   <article className="prose prose-pink lg:prose-xl max-w-none text-[#1D1D1F] leading-relaxed selection:bg-pink-100">
+                     {selectedArticle.content.split('\n').filter(Boolean).map((line, i) => {
+                       if (line.startsWith('# ')) {
+                         return <h1 key={i} className="text-3xl font-bold mt-8 mb-4 text-gray-900">{line.replace('# ', '')}</h1>;
+                       }
+                       if (line.startsWith('## ')) {
+                         return <h2 key={i} className="text-2xl font-bold mt-10 mb-4 pb-2 border-b-2 border-pink-100 text-gray-800">{line.replace('## ', '')}</h2>;
+                       }
+                       if (line.startsWith('### ')) {
+                         return <h3 key={i} className="text-xl font-bold mt-6 mb-3 text-gray-800 flex items-center gap-2">
+                           <span className="w-1.5 h-6 bg-pink-400 rounded-full inline-block" />
+                           {line.replace('### ', '')}
+                         </h3>;
+                       }
+                       if (line.startsWith('- ')) {
+                         return <li key={i} className="ml-4 mb-2 text-gray-700 list-disc marker:text-pink-500">{line.replace('- ', '')}</li>;
+                       }
+                       if (line.startsWith('> ')) {
+                         return <blockquote key={i} className="border-l-4 border-pink-300 pl-6 py-2 my-8 bg-pink-50/50 rounded-r-2xl italic text-gray-600">
+                           {line.replace('> ', '').replace(/\"/g, '')}
+                         </blockquote>;
+                       }
+                       if (line.startsWith('---')) {
+                         return <hr key={i} className="my-12 border-gray-100" />;
+                       }
+                       if (line.startsWith('*') && line.endsWith('*')) {
+                         return <p key={i} className="text-sm text-gray-400 text-center mt-12 italic">{line.replace(/\*/g, '')}</p>;
+                       }
+                       
+                       // Handle bold text like **text**
+                       const parts = line.split(/(\*\*.*?\*\*)/g);
+                       return (
+                         <p key={i} className="mb-6 leading-loose text-gray-700">
+                           {parts.map((part, pi) => {
+                             if (part.startsWith('**') && part.endsWith('**')) {
+                               return <strong key={pi} className="text-gray-900 font-bold">{part.slice(2, -2)}</strong>;
+                             }
+                             return part;
+                           })}
+                         </p>
+                       );
+                     })}
                    </article>
+
+                   {/* Article Footer */}
+                   <div className="mt-20 p-8 bg-[#F5F5F7] rounded-3xl border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-2xl">💡</div>
+                        <div>
+                          <h4 className="font-bold text-gray-900">觉得这篇科普有用吗？</h4>
+                          <p className="text-sm text-gray-500">收藏或分享给更多需要的宝妈吧</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => toggleFavorite(selectedArticle.id)}
+                          className={cn(
+                            "px-6 py-3 rounded-2xl font-bold transition-all flex items-center gap-2",
+                            favoriteIds.has(selectedArticle.id) 
+                              ? "bg-pink-100 text-pink-600" 
+                              : "bg-white text-gray-700 hover:bg-gray-50 shadow-sm"
+                          )}
+                        >
+                          <Bookmark className="w-5 h-5" />
+                          {favoriteIds.has(selectedArticle.id) ? "已收藏" : "收藏"}
+                        </button>
+                        <button 
+                          onClick={(e) => handleShareClick(e, selectedArticle)}
+                          className="px-6 py-3 rounded-2xl bg-[#0066CC] text-white font-bold hover:bg-[#0055AA] transition-all flex items-center gap-2 shadow-lg shadow-blue-100"
+                        >
+                          <Share className="w-5 h-5" />
+                          分享
+                        </button>
+                      </div>
+                   </div>
                  </div>
               </div>
             </motion.div>
