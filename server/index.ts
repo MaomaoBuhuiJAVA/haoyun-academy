@@ -7,23 +7,33 @@ import { PrismaClient, ResourceStatus, ResourceType, Role } from "@prisma/client
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
-// Vercel Postgres support
-if (!process.env.POSTGRES_PRISMA_URL && process.env.DATABASE_URL) {
-  process.env.POSTGRES_PRISMA_URL = process.env.DATABASE_URL;
-}
-
-const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL;
-
 // Prevent multiple instances of Prisma Client in development
 declare global {
   var prisma: PrismaClient | undefined;
 }
 
-export const prisma = global.prisma || (dbUrl 
-  ? new PrismaClient({ datasources: { db: { url: dbUrl } } })
-  : new PrismaClient());
+// Lazy-load Prisma Client to prevent startup crashes if DB URL is missing
+const getPrisma = () => {
+  if (global.prisma) return global.prisma;
 
-if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL;
+  const client = dbUrl
+    ? new PrismaClient({ datasources: { db: { url: dbUrl } } })
+    : new PrismaClient();
+
+  if (process.env.NODE_ENV !== "production") {
+    global.prisma = client;
+  }
+  return client;
+};
+
+// Replace existing prisma usage with a proxy or getter
+export const prisma = new Proxy({} as PrismaClient, {
+  get: (target, prop) => {
+    const client = getPrisma();
+    return Reflect.get(client, prop);
+  },
+});
 
 const PORT = Number(process.env.PORT ?? 3001);
 export const app = express();
