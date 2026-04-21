@@ -208,14 +208,6 @@ export function Home() {
             </div>
           </div>
         </FadeInUp>
-                <div className="px-4 py-2 rounded-2xl bg-white/70 border border-gray-100 shadow-sm">
-                  <div className="text-xs text-[#86868B]">今日推荐</div>
-                  <div className="text-lg font-semibold text-[#0066CC]">精选 {Math.min(6, filteredResources.length)}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </FadeInUp>
 
         {/* Timeline Filter */}
         <FadeInUp delay={0.1} className="w-full overflow-x-auto pb-4 no-scrollbar">
