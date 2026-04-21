@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { registerUser } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { HeartPulse, User as UserIcon, Mail, Lock, ChevronRight } from "lucide-react";
+import { HeartPulse, User as UserIcon, Mail, Lock, ChevronRight, Smartphone } from "lucide-react";
 
 export function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("VIEWER");
   const [error, setError] = useState("");
@@ -20,11 +21,11 @@ export function Register() {
     setLoading(true);
 
     try {
-      const user = await registerUser({ name, email, password, role });
+      const user = await registerUser({ name, email, password, phone, role });
       login(user);
       navigate("/");
     } catch (err: any) {
-      setError("注册失败，该邮箱可能已被占用");
+      setError(err.message || "注册失败，请检查输入信息");
     } finally {
       setLoading(false);
     }
@@ -34,7 +35,6 @@ export function Register() {
     <div className="min-h-screen flex bg-white overflow-hidden">
       {/* Left Side: Image Stack Decor */}
       <div className="hidden lg:flex lg:w-1/2 bg-[#F0F7FF] relative items-center justify-center p-12 overflow-hidden">
-        {/* Background Circles */}
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-200/50 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-pink-100/50 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
 
@@ -54,7 +54,6 @@ export function Register() {
             成为好孕社区的一员，获取量身定制的孕产指导与专家建议。
           </p>
 
-          {/* Image Stack - Different style for Register */}
           <div className="relative h-[400px] w-full mt-12 hidden md:block">
             <div className="absolute top-0 right-10 w-64 h-80 rounded-[2.5rem] overflow-hidden shadow-2xl rotate-[10deg] border-8 border-white hover:rotate-0 transition-transform duration-500 z-10">
               <img src="/BabyPhotos/image_010.jpg" alt="Baby 1" className="w-full h-full object-cover" />
@@ -70,20 +69,19 @@ export function Register() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-[#F5F5F7]">
         <div className="max-w-md w-full">
           <div className="bg-white/70 backdrop-blur-2xl p-10 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/50 relative overflow-hidden">
-            {/* Header */}
             <div className="mb-10 text-center">
               <h2 className="text-4xl font-bold text-gray-900 mb-2">立即加入</h2>
               <p className="text-gray-500">创建一个属于您的健康档案</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="bg-red-50 text-red-500 p-4 rounded-2xl text-sm border border-red-100 animate-shake">
+                <div className="bg-red-50 text-red-500 p-4 rounded-2xl text-sm border border-red-100">
                   {error}
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <UserIcon className="h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors" />
@@ -109,6 +107,19 @@ export function Register() {
                     placeholder="电子邮箱"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Smartphone className="h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors" />
+                  </div>
+                  <input
+                    type="tel"
+                    className="block w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-pink-500 focus:bg-white transition-all text-gray-900 placeholder-gray-400"
+                    placeholder="手机号码 (可选)"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                   />
                 </div>
 
@@ -163,7 +174,7 @@ export function Register() {
               </button>
             </form>
 
-            <p className="mt-10 text-center text-gray-500">
+            <p className="mt-8 text-center text-gray-500">
               已有账号？{" "}
               <Link to="/login" className="font-bold text-pink-600 hover:text-pink-500 underline decoration-2 underline-offset-4">
                 立即登录

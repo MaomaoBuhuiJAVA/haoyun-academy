@@ -31,6 +31,7 @@ model User {
   id            String    @id @default(uuid())
   name          String
   email         String    @unique
+  phone         String?   @unique // 手机号码
   password      String    @default("123456") // 默认密码，实际应使用加密存储
   role          Role      @default(VIEWER)
   resources     Resource[] // 医生发布的资源

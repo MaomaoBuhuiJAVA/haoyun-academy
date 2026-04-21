@@ -41,6 +41,9 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
+// In-memory store for phone verification codes
+const phoneOtpStore = new Map<string, { code: string; expires: number }>();
+
 function getUserId(req: express.Request) {
   return (req.header("x-user-id") || "wechat_9527").trim();
 }
@@ -107,6 +110,7 @@ app.post("/api/auth/register", async (req, res) => {
   const schema = z.object({
     name: z.string().min(2),
     email: z.string().email(),
+    phone: z.string().optional(),
     password: z.string().min(6),
     role: z.nativeEnum(Role).optional(),
   });
@@ -114,18 +118,79 @@ app.post("/api/auth/register", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST", details: parsed.error.format() });
 
   try {
-    const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-    if (existing) return res.status(409).json({ error: "USER_EXISTS" });
+    const existingEmail = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    if (existingEmail) return res.status(409).json({ error: "USER_EXISTS", message: "该邮箱已被注册" });
+
+    if (parsed.data.phone) {
+      const existingPhone = await prisma.user.findUnique({ where: { phone: parsed.data.phone } });
+      if (existingPhone) return res.status(409).json({ error: "PHONE_EXISTS", message: "该手机号已被注册" });
+    }
 
     const user = await prisma.user.create({
       data: {
         name: parsed.data.name,
         email: parsed.data.email,
+        phone: parsed.data.phone,
         password: parsed.data.password,
         role: parsed.data.role || Role.VIEWER,
       },
     });
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone } });
+  } catch (e) {
+    res.status(500).json({ error: "SERVER_ERROR", message: String(e) });
+  }
+});
+
+app.post("/api/auth/send-phone-otp", async (req, res) => {
+  const schema = z.object({ phone: z.string().regex(/^1[3-9]\d{9}$/) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST", message: "手机号格式不正确" });
+
+  const { phone } = parsed.data;
+  const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+  const expires = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+  phoneOtpStore.set(phone, { code, expires });
+
+  // eslint-disable-next-line no-console
+  console.log(`[SMS OTP] Code for ${phone}: ${code}`);
+  
+  // In a real app, you would integrate with AliCloud SMS, Tencent Cloud SMS, etc.
+  res.json({ ok: true, code: process.env.NODE_ENV === "production" ? undefined : code });
+});
+
+app.post("/api/auth/login-phone-otp", async (req, res) => {
+  const schema = z.object({
+    phone: z.string().regex(/^1[3-9]\d{9}$/),
+    code: z.string().length(6),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST" });
+
+  const { phone, code } = parsed.data;
+  const stored = phoneOtpStore.get(phone);
+
+  if (!stored || stored.code !== code || Date.now() > stored.expires) {
+    return res.status(401).json({ error: "INVALID_CODE", message: "验证码错误或已过期" });
+  }
+
+  phoneOtpStore.delete(phone);
+
+  try {
+    let user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      // Auto-register on first phone OTP login
+      user = await prisma.user.create({
+        data: {
+          phone,
+          email: `${phone}@haoyun.local`, // generate a fake email
+          name: `手机用户_${phone.slice(-4)}`,
+          role: Role.VIEWER,
+          password: Math.random().toString(36).slice(-8),
+        },
+      });
+    }
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone } });
   } catch (e) {
     res.status(500).json({ error: "SERVER_ERROR", message: String(e) });
   }

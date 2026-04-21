@@ -110,10 +110,25 @@ export async function loginUser(credentials: { email: string; password: string }
   return data.user;
 }
 
-export async function registerUser(input: { name: string; email: string; password: string; role?: string }) {
+export async function registerUser(input: { name: string; email: string; password: string; phone?: string; role?: string }) {
   const data = await apiFetch<{ user: any }>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+  return data.user;
+}
+
+export async function sendPhoneOtp(phone: string) {
+  return await apiFetch<{ ok: true; code?: string }>("/api/auth/send-phone-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function loginWithPhoneOtp(phone: string, code: string) {
+  const data = await apiFetch<{ user: any }>("/api/auth/login-phone-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone, code }),
   });
   return data.user;
 }
