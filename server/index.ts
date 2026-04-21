@@ -1,11 +1,11 @@
 import express from "express";
 import cors from "cors";
 import { z } from "zod";
-import { ensureSeedResources, getStore, saveStore, createSubmission, setSubmissionStatus } from "./store";
-import { seedResources } from "./seed";
+import { PrismaClient, ResourceStatus, ResourceType, Role } from "@prisma/client";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const app = express();
+const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -19,80 +19,141 @@ function getRole(req: express.Request) {
   return raw === "doctor" || raw === "admin" ? raw : "patient";
 }
 
+const stageTags = ["孕早期", "孕中期", "孕晚期", "新生儿", "婴幼儿"];
+
+function estimateReadTime(content?: string | null, estimated?: number | null) {
+  if (estimated && Number.isFinite(estimated)) return `${estimated} min`;
+  const len = (content ?? "").length;
+  const mins = Math.min(12, Math.max(4, Math.round(len / 380)));
+  return `${mins} min`;
+}
+
+function toApiResource(r: {
+  id: string;
+  title: string;
+  coverImageUrl: string | null;
+  tags: string[];
+  content: string | null;
+  estimatedTime: number | null;
+  author: { name: string };
+}) {
+  const filterTag = r.tags.find((t) => stageTags.includes(t)) ?? r.tags[0] ?? "孕早期";
+  return {
+    id: r.id,
+    title: r.title,
+    image: r.coverImageUrl || "",
+    filterTag,
+    tags: r.tags,
+    readTime: estimateReadTime(r.content, r.estimatedTime),
+    colSpan: "col-span-1 md:col-span-1",
+    author: r.author?.name ?? "平台医生",
+    content: r.content ?? "",
+  };
+}
+
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/resources", (req, res) => {
+app.get("/api/resources", async (req, res) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const filter = String(req.query.filter ?? "").trim();
-  const store = getStore();
-
-  let list = store.resources.filter((r) => r.status === "published");
-  if (filter && filter !== "全部") {
-    list = list.filter((r) => r.filterTag === filter || r.tags.includes(filter));
+  try {
+    const rows = await prisma.resource.findMany({
+      where: { status: ResourceStatus.PUBLISHED },
+      include: { author: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    });
+    let list = rows.map(toApiResource);
+    if (filter && filter !== "全部") {
+      list = list.filter((r) => r.filterTag === filter || r.tags.includes(filter));
+    }
+    if (q) {
+      list = list.filter(
+        (r) =>
+          r.title.toLowerCase().includes(q) ||
+          r.tags.some((t) => t.toLowerCase().includes(q)) ||
+          r.author.toLowerCase().includes(q),
+      );
+    }
+    res.json({ items: list });
+  } catch (e) {
+    res.status(500).json({ error: "DB_ERROR", message: String((e as Error)?.message ?? e) });
   }
-  if (q) {
-    list = list.filter(
-      (r) =>
-        r.title.toLowerCase().includes(q) ||
-        r.tags.some((t) => t.toLowerCase().includes(q)) ||
-        r.author.toLowerCase().includes(q),
-    );
-  }
-  res.json({ items: list });
 });
 
-app.get("/api/resources/:id", (req, res) => {
-  const id = Number(req.params.id);
-  const store = getStore();
-  const r = store.resources.find((x) => x.id === id && x.status === "published");
+app.get("/api/resources/:id", async (req, res) => {
+  const id = String(req.params.id);
+  const r = await prisma.resource.findFirst({
+    where: { id, status: ResourceStatus.PUBLISHED },
+    include: { author: { select: { name: true } } },
+  });
   if (!r) return res.status(404).json({ error: "NOT_FOUND" });
-  res.json({ item: r });
+  res.json({ item: toApiResource(r) });
 });
 
-app.get("/api/favorites", (req, res) => {
+app.get("/api/favorites", async (req, res) => {
   const userId = getUserId(req);
-  const store = getStore();
-  const favIds = new Set(store.favorites.filter((f) => f.userId === userId).map((f) => f.resourceId));
-  const items = store.resources.filter((r) => favIds.has(r.id) && r.status === "published");
+  const favRows = await prisma.interaction.findMany({
+    where: { actionType: "FAVORITE", deviceFingerprint: userId },
+    select: { resourceId: true },
+  });
+  const favIds = favRows.map((x) => x.resourceId);
+  if (favIds.length === 0) return res.json({ items: [] });
+  const rows = await prisma.resource.findMany({
+    where: { id: { in: favIds }, status: ResourceStatus.PUBLISHED },
+    include: { author: { select: { name: true } } },
+    orderBy: { updatedAt: "desc" },
+  });
+  const items = rows.map(toApiResource);
   res.json({ items });
 });
 
-app.get("/api/favorites/ids", (req, res) => {
+app.get("/api/favorites/ids", async (req, res) => {
   const userId = getUserId(req);
-  const store = getStore();
-  const ids = store.favorites.filter((f) => f.userId === userId).map((f) => f.resourceId);
+  const rows = await prisma.interaction.findMany({
+    where: { actionType: "FAVORITE", deviceFingerprint: userId },
+    select: { resourceId: true },
+  });
+  const ids = rows.map((x) => x.resourceId);
   res.json({ ids });
 });
 
-app.post("/api/favorites", (req, res) => {
+app.post("/api/favorites", async (req, res) => {
   const userId = getUserId(req);
-  const schema = z.object({ resourceId: z.number().int().positive() });
+  const schema = z.object({ resourceId: z.string().min(1) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST" });
   const { resourceId } = parsed.data;
 
-  const store = getStore();
-  const exists = store.favorites.some((f) => f.userId === userId && f.resourceId === resourceId);
-  if (exists) return res.json({ ok: true });
-
-  const createdAt = new Date().toISOString();
-  const next = { ...store, favorites: [...store.favorites, { userId, resourceId, createdAt }] };
-  saveStore(next);
+  const exists = await prisma.interaction.findFirst({
+    where: { actionType: "FAVORITE", deviceFingerprint: userId, resourceId },
+    select: { id: true },
+  });
+  if (!exists) {
+    await prisma.interaction.create({
+      data: {
+        resourceId,
+        actionType: "FAVORITE",
+        deviceFingerprint: userId,
+        durationSeconds: 0,
+      },
+    });
+  }
   res.json({ ok: true });
 });
 
-app.delete("/api/favorites/:resourceId", (req, res) => {
+app.delete("/api/favorites/:resourceId", async (req, res) => {
   const userId = getUserId(req);
-  const resourceId = Number(req.params.resourceId);
-  const store = getStore();
-  const nextFavs = store.favorites.filter((f) => !(f.userId === userId && f.resourceId === resourceId));
-  saveStore({ ...store, favorites: nextFavs });
+  const resourceId = String(req.params.resourceId);
+  await prisma.interaction.deleteMany({
+    where: { actionType: "FAVORITE", deviceFingerprint: userId, resourceId },
+  });
   res.json({ ok: true });
 });
 
-app.post("/api/submissions", (req, res) => {
+app.post("/api/submissions", async (req, res) => {
   const role = getRole(req);
   if (role !== "doctor") return res.status(403).json({ error: "FORBIDDEN" });
 
@@ -107,73 +168,112 @@ app.post("/api/submissions", (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST" });
 
   const userId = getUserId(req);
-  const created = createSubmission({ userId, ...parsed.data });
-  res.json({ item: created });
+  const doctor = await prisma.user.upsert({
+    where: { email: `${userId}@haoyun.local` },
+    update: { role: Role.DOCTOR, name: `医生_${userId}` },
+    create: { email: `${userId}@haoyun.local`, role: Role.DOCTOR, name: `医生_${userId}` },
+  });
+
+  const created = await prisma.resource.create({
+    data: {
+      title: parsed.data.title,
+      summary: parsed.data.category,
+      coverImageUrl: parsed.data.coverImage || null,
+      type: ResourceType.ARTICLE,
+      content: parsed.data.content,
+      tags: Array.from(new Set([parsed.data.category, ...parsed.data.tags])),
+      status: ResourceStatus.PENDING_REVIEW,
+      estimatedTime: 6,
+      authorId: doctor.id,
+    },
+  });
+  res.json({ item: { id: created.id, status: "pending" } });
 });
 
-app.get("/api/admin/reviews", (req, res) => {
+app.get("/api/admin/reviews", async (req, res) => {
   const role = getRole(req);
   if (role !== "admin") return res.status(403).json({ error: "FORBIDDEN" });
-  const store = getStore();
-  const items = store.submissions
-    .filter((s) => s.status === "pending")
-    .slice()
-    .reverse();
+  const rows = await prisma.resource.findMany({
+    where: { status: ResourceStatus.PENDING_REVIEW },
+    include: { author: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+  const items = rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    userId: r.author?.name ?? "医生投稿",
+    tags: r.tags,
+    coverImage: r.coverImageUrl || "",
+    createdAt: r.createdAt.toISOString(),
+    content: r.content ?? "",
+  }));
   res.json({ items });
 });
 
-app.post("/api/admin/reviews/:id/approve", (req, res) => {
+app.post("/api/admin/reviews/:id/approve", async (req, res) => {
   const role = getRole(req);
   if (role !== "admin") return res.status(403).json({ error: "FORBIDDEN" });
 
-  const id = Number(req.params.id);
+  const id = String(req.params.id);
   const schema = z.object({ note: z.string().trim().max(500).optional() });
   const parsed = schema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST" });
 
-  const updated = setSubmissionStatus(id, "approved", parsed.data.note);
+  const updated = await prisma.resource.update({
+    where: { id },
+    data: { status: ResourceStatus.PUBLISHED },
+  }).catch(() => null);
   if (!updated) return res.status(404).json({ error: "NOT_FOUND" });
-
-  // Optionally: auto-publish as a new resource when approved (simple mapping).
-  const store = getStore();
-  const nextResourceId = (store.resources.at(-1)?.id ?? 0) + 1;
-  const t = new Date().toISOString();
-  const resource = {
-    id: nextResourceId,
-    title: updated.title,
-    image: updated.coverImage ?? "https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?q=80&w=1200&auto=format&fit=crop",
-    filterTag: updated.category,
-    tags: updated.tags,
-    readTime: "6 min",
-    colSpan: "col-span-1 md:col-span-1",
-    author: "医生投稿 · 审核通过",
-    content: updated.content,
-    status: "published" as const,
-    createdAt: t,
-    updatedAt: t,
-  };
-  saveStore({ ...store, resources: [...store.resources, resource] });
-
-  res.json({ ok: true, submission: updated, resource });
+  const adminUserId = getUserId(req);
+  const admin = await prisma.user.upsert({
+    where: { email: `${adminUserId}@haoyun.local` },
+    update: { role: Role.ADMIN, name: `管理员_${adminUserId}` },
+    create: { email: `${adminUserId}@haoyun.local`, role: Role.ADMIN, name: `管理员_${adminUserId}` },
+  });
+  await prisma.auditLog.create({
+    data: {
+      resourceId: id,
+      reviewerId: admin.id,
+      action: "APPROVED",
+      comments: parsed.data.note,
+    },
+  });
+  res.json({ ok: true, submission: { id, status: "approved" } });
 });
 
-app.post("/api/admin/reviews/:id/reject", (req, res) => {
+app.post("/api/admin/reviews/:id/reject", async (req, res) => {
   const role = getRole(req);
   if (role !== "admin") return res.status(403).json({ error: "FORBIDDEN" });
 
-  const id = Number(req.params.id);
+  const id = String(req.params.id);
   const schema = z.object({ note: z.string().trim().min(1).max(500) });
   const parsed = schema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST" });
 
-  const updated = setSubmissionStatus(id, "rejected", parsed.data.note);
+  const updated = await prisma.resource.update({
+    where: { id },
+    data: { status: ResourceStatus.ARCHIVED },
+  }).catch(() => null);
   if (!updated) return res.status(404).json({ error: "NOT_FOUND" });
-  res.json({ ok: true, submission: updated });
+  const adminUserId = getUserId(req);
+  const admin = await prisma.user.upsert({
+    where: { email: `${adminUserId}@haoyun.local` },
+    update: { role: Role.ADMIN, name: `管理员_${adminUserId}` },
+    create: { email: `${adminUserId}@haoyun.local`, role: Role.ADMIN, name: `管理员_${adminUserId}` },
+  });
+  await prisma.auditLog.create({
+    data: {
+      resourceId: id,
+      reviewerId: admin.id,
+      action: "REJECTED",
+      comments: parsed.data.note,
+    },
+  });
+  res.json({ ok: true, submission: { id, status: "rejected" } });
 });
 
 async function main() {
-  const seed = await seedResources(200);
-  ensureSeedResources(seed, { targetCount: 200, updateExisting: true });
   app.listen(PORT, () => {
     // eslint-disable-next-line no-console
     console.log(`[server] listening on http://localhost:${PORT}`);

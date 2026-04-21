@@ -18,7 +18,7 @@ export function getStageCover(filterTag?: string) {
 export function withCoverFallback(
   image: string | undefined,
   filterTag?: string,
-  _opts?: { id?: number; title?: string },
+  _opts?: { id?: string | number; title?: string },
 ) {
   if (image && image.trim()) return image;
   return getStageCover(filterTag);

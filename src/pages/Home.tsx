@@ -16,7 +16,7 @@ export function Home() {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
   const [resources, setResources] = useState<ApiResource[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState<null | { text: string }>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -75,7 +75,7 @@ export function Home() {
     setIsShareOpen(true);
   };
 
-  const toggleFavorite = (resourceId: number) => {
+  const toggleFavorite = (resourceId: string) => {
     // Optimistic update: avoid any perceived "refresh" or jank.
     const before = favoriteIds;
     const next = new Set(before);

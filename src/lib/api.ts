@@ -1,5 +1,5 @@
 export type ApiResource = {
-  id: number;
+  id: string;
   title: string;
   image: string;
   filterTag: string;
@@ -48,7 +48,7 @@ export async function listResources(params: { q?: string; filter?: string }) {
 }
 
 export async function getFavoriteIds() {
-  const data = await apiFetch<{ ids: number[] }>("/api/favorites/ids");
+  const data = await apiFetch<{ ids: string[] }>("/api/favorites/ids");
   return new Set(data.ids);
 }
 
@@ -57,11 +57,11 @@ export async function listFavorites() {
   return data.items;
 }
 
-export async function addFavorite(resourceId: number) {
+export async function addFavorite(resourceId: string) {
   await apiFetch<{ ok: true }>("/api/favorites", { method: "POST", body: JSON.stringify({ resourceId }) });
 }
 
-export async function removeFavorite(resourceId: number) {
+export async function removeFavorite(resourceId: string) {
   await apiFetch<{ ok: true }>(`/api/favorites/${resourceId}`, { method: "DELETE" });
 }
 
@@ -72,7 +72,7 @@ export async function submitDoctorArticle(input: {
   coverImage?: string;
   content: string;
 }) {
-  const data = await apiFetch<{ item: { id: number } }>("/api/submissions", { method: "POST", body: JSON.stringify(input) });
+  const data = await apiFetch<{ item: { id: string } }>("/api/submissions", { method: "POST", body: JSON.stringify(input) });
   return data.item;
 }
 
@@ -81,11 +81,11 @@ export async function listPendingReviews() {
   return data.items;
 }
 
-export async function approveReview(id: number, note?: string) {
+export async function approveReview(id: string, note?: string) {
   await apiFetch("/api/admin/reviews/" + id + "/approve", { method: "POST", body: JSON.stringify({ note }) });
 }
 
-export async function rejectReview(id: number, note: string) {
+export async function rejectReview(id: string, note: string) {
   await apiFetch("/api/admin/reviews/" + id + "/reject", { method: "POST", body: JSON.stringify({ note }) });
 }
 

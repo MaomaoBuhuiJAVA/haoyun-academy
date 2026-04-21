@@ -51,7 +51,7 @@ function AnimatedCounter({ value }: { value: number }) {
 }
 
 export function AdminDashboard() {
-  const [selectedReview, setSelectedReview] = useState<typeof mockReviews[0] | null>(null);
+  const [selectedReview, setSelectedReview] = useState<any | null>(null);
   const [pending, setPending] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -91,13 +91,13 @@ export function AdminDashboard() {
     }));
   }, [pending]);
 
-  const handleApprove = async (id: number) => {
+  const handleApprove = async (id: string) => {
     await approveReview(id, "审核通过");
     setPending((p) => p.filter((x) => x.id !== id));
     setSelectedReview(null);
   };
 
-  const handleReject = async (id: number) => {
+  const handleReject = async (id: string) => {
     await rejectReview(id, "内容需补充权威来源或完善表述");
     setPending((p) => p.filter((x) => x.id !== id));
     setSelectedReview(null);
