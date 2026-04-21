@@ -101,6 +101,53 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+app.post("/api/auth/register", async (req, res) => {
+  const schema = z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    password: z.string().min(6),
+    role: z.nativeEnum(Role).optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST", details: parsed.error.format() });
+
+  try {
+    const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    if (existing) return res.status(409).json({ error: "USER_EXISTS" });
+
+    const user = await prisma.user.create({
+      data: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        password: parsed.data.password,
+        role: parsed.data.role || Role.VIEWER,
+      },
+    });
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (e) {
+    res.status(500).json({ error: "SERVER_ERROR", message: String(e) });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const schema = z.object({
+    email: z.string().email(),
+    password: z.string(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    if (!user || user.password !== parsed.data.password) {
+      return res.status(401).json({ error: "INVALID_CREDENTIALS" });
+    }
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (e) {
+    res.status(500).json({ error: "SERVER_ERROR", message: String(e) });
+  }
+});
+
 app.get("/api/resources", async (req, res) => {
   const q = String(req.query.q ?? "").trim().toLowerCase();
   const filter = String(req.query.filter ?? "").trim();

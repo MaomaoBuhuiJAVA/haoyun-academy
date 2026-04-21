@@ -16,18 +16,41 @@ function parseEstimatedTime(readTime: string) {
 async function main() {
   const items = await seedResources(200);
 
-  const doctor = await prisma.user.upsert({
-    where: { email: "doctor@haoyun.local" },
-    update: { name: "平台医生", role: Role.DOCTOR },
-    create: {
-      name: "平台医生",
+  // 默认账号配置
+  const defaultUsers = [
+    {
+      name: "超级管理员",
+      email: "admin@haoyun.local",
+      password: "admin123",
+      role: Role.ADMIN,
+    },
+    {
+      name: "专家医生",
       email: "doctor@haoyun.local",
+      password: "doctor123",
       role: Role.DOCTOR,
     },
-  });
+    {
+      name: "普通用户",
+      email: "user@haoyun.local",
+      password: "user123",
+      role: Role.VIEWER,
+    },
+  ];
+
+  let mainDoctorId = "";
+
+  for (const u of defaultUsers) {
+    const user = await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name, role: u.role, password: u.password },
+      create: u,
+    });
+    if (u.role === Role.DOCTOR) mainDoctorId = user.id;
+  }
 
   await prisma.resource.deleteMany({
-    where: { authorId: doctor.id },
+    where: { authorId: mainDoctorId },
   });
 
   if (items.length === 0) return;
@@ -42,12 +65,12 @@ async function main() {
       tags: r.tags,
       status: ResourceStatus.PUBLISHED,
       estimatedTime: parseEstimatedTime(r.readTime),
-      authorId: doctor.id,
+      authorId: mainDoctorId,
     })),
   });
 
   // eslint-disable-next-line no-console
-  console.log(`[db:seed] inserted ${items.length} resources`);
+  console.log(`[db:seed] inserted ${items.length} resources and default users`);
 }
 
 main()

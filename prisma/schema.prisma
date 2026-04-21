@@ -31,6 +31,7 @@ model User {
   id            String    @id @default(uuid())
   name          String
   email         String    @unique
+  password      String    @default("123456") // 默认密码，实际应使用加密存储
   role          Role      @default(VIEWER)
   resources     Resource[] // 医生发布的资源
   auditLogs     AuditLog[] // 管理员的审核记录
