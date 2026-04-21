@@ -56,10 +56,10 @@ async function main() {
   if (items.length === 0) return;
 
   await prisma.resource.createMany({
-    data: items.map((r) => ({
+    data: items.map((r, i) => ({
       title: r.title,
       summary: `${r.filterTag} · ${r.tags.slice(0, 3).join(" / ")}`,
-      coverImageUrl: r.image,
+      coverImageUrl: `/BabyPhotos/image_${String((i % 200) + 1).padStart(3, "0")}.jpg`,
       type: ResourceType.ARTICLE,
       content: r.content,
       tags: r.tags,
