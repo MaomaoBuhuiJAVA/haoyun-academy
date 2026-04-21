@@ -41,6 +41,9 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
+// In-memory store for login captchas
+const captchaStore = new Map<string, { code: string; expires: number }>();
+
 function getUserId(req: express.Request) {
   return (req.header("x-user-id") || "wechat_9527").trim();
 }
@@ -103,6 +106,15 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+app.get("/api/auth/captcha", (req, res) => {
+  const id = Math.random().toString(36).substring(7);
+  const code = Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit code
+  const expires = Date.now() + 2 * 60 * 1000; // 2 minutes
+
+  captchaStore.set(id, { code, expires });
+  res.json({ id, code }); // In real app, you would send an image
+});
+
 app.post("/api/auth/register", async (req, res) => {
   const schema = z.object({
     name: z.string().min(2),
@@ -142,16 +154,27 @@ app.post("/api/auth/login", async (req, res) => {
   const schema = z.object({
     email: z.string().email(),
     password: z.string(),
+    captchaId: z.string(),
+    captchaCode: z.string(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "BAD_REQUEST" });
 
+  const { email, password, captchaId, captchaCode } = parsed.data;
+  const storedCaptcha = captchaStore.get(captchaId);
+
+  if (!storedCaptcha || storedCaptcha.code !== captchaCode || Date.now() > storedCaptcha.expires) {
+    return res.status(401).json({ error: "INVALID_CAPTCHA", message: "验证码错误或已过期" });
+  }
+  
+  captchaStore.delete(captchaId); // One-time use
+
   try {
-    const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-    if (!user || user.password !== parsed.data.password) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.password !== password) {
       return res.status(401).json({ error: "INVALID_CREDENTIALS" });
     }
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone } });
   } catch (e) {
     res.status(500).json({ error: "SERVER_ERROR", message: String(e) });
   }

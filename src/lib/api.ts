@@ -102,12 +102,16 @@ export async function listPendingReviews() {
   return data.items;
 }
 
-export async function loginUser(credentials: { email: string; password: string }) {
+export async function loginUser(credentials: { email: string; password: string; captchaId: string; captchaCode: string }) {
   const data = await apiFetch<{ user: any }>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify(credentials),
   });
   return data.user;
+}
+
+export async function getCaptcha() {
+  return await apiFetch<{ id: string; code: string }>("/api/auth/captcha");
 }
 
 export async function registerUser(input: { name: string; email: string; password: string; phone?: string; role?: string }) {
