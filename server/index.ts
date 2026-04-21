@@ -6,16 +6,27 @@ import { PrismaClient, ResourceStatus, ResourceType, Role } from "@prisma/client
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
+
+// Vercel Postgres support
 if (!process.env.POSTGRES_PRISMA_URL && process.env.DATABASE_URL) {
   process.env.POSTGRES_PRISMA_URL = process.env.DATABASE_URL;
 }
 
+const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL;
+
+// Prevent multiple instances of Prisma Client in development
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
+export const prisma = global.prisma || (dbUrl 
+  ? new PrismaClient({ datasources: { db: { url: dbUrl } } })
+  : new PrismaClient());
+
+if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+
 const PORT = Number(process.env.PORT ?? 3001);
 export const app = express();
-const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL;
-const prisma = dbUrl
-  ? new PrismaClient({ datasources: { db: { url: dbUrl } } })
-  : new PrismaClient();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -71,8 +82,13 @@ function toApiResource(r: {
   };
 }
 
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true });
+app.get("/api/health", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ ok: true, db: "connected" });
+  } catch (e) {
+    res.status(500).json({ ok: false, db: "error", message: String(e) });
+  }
 });
 
 app.get("/api/resources", async (req, res) => {
