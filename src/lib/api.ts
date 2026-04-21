@@ -102,6 +102,22 @@ export async function listPendingReviews() {
   return data.items;
 }
 
+export async function loginUser(credentials: { email: string; password: string }) {
+  const data = await apiFetch<{ user: any }>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  });
+  return data.user;
+}
+
+export async function registerUser(input: { name: string; email: string; password: string; role?: string }) {
+  const data = await apiFetch<{ user: any }>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return data.user;
+}
+
 export async function approveReview(id: string, note?: string) {
   await apiFetch("/api/admin/reviews/" + id + "/approve", { method: "POST", body: JSON.stringify({ note }) });
 }

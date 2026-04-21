@@ -1,22 +1,21 @@
-import { Search, HeartPulse, User } from "lucide-react";
+import { Search, HeartPulse, User as UserIcon, LogOut, Settings, LayoutDashboard } from "lucide-react";
 import { useEffect, useRef, useState, FormEvent } from "react";
 import { cn } from "../../lib/utils";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../../lib/auth";
 
 export function Navbar() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isDoctor, setIsDoctor] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const { user, logout } = useAuth();
   
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const role = localStorage.getItem("role") || "patient";
-    setIsDoctor(role === "doctor" || role === "admin");
-  }, []);
+  const isDoctor = user?.role === "DOCTOR" || user?.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
     const onDocDown = (e: MouseEvent) => {
@@ -100,32 +99,60 @@ export function Navbar() {
                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                  className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#0066CC] to-blue-400 flex items-center justify-center cursor-pointer shadow-sm hover:opacity-90 active:scale-95 transition-all"
                >
-                  <User className="w-4 h-4 text-white" />
+                  <UserIcon className="w-4 h-4 text-white" />
                </div>
 
                {/* Profile Dropdown */}
                {isDropdownOpen && (
-                 <div className="absolute right-0 mt-3 w-48 bg-white/90 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-2 flex flex-col z-50">
-                    <div className="px-4 py-2 border-b border-gray-100 mb-1">
-                       <p className="text-xs text-[#86868B] font-medium tracking-wide">当前登录身份</p>
-                       <p className="text-sm font-semibold text-[#1D1D1F] mt-0.5">{isDoctor ? '李医生 (妇产科)' : '微信用户_9527'}</p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const nextIsDoctor = !isDoctor;
-                        setIsDoctor(nextIsDoctor);
-                        localStorage.setItem("role", nextIsDoctor ? "doctor" : "patient");
-                        localStorage.setItem("userId", nextIsDoctor ? "doctor_1" : "wechat_9527");
-                        setIsDropdownOpen(false);
-                      }}
-                      className="text-left px-4 py-2 text-sm text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
-                    >
-                      切换为模拟{isDoctor ? '患者' : '医生'}账号
-                    </button>
-                    {isDoctor && (
-                      <Link to="/admin/dashboard" onClick={() => setIsDropdownOpen(false)} className="text-left px-4 py-2 text-sm text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors">
-                        进入管理后台
-                      </Link>
+                 <div className="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 py-2 flex flex-col z-50">
+                    {user ? (
+                      <>
+                        <div className="px-4 py-2 border-b border-gray-100 mb-1">
+                           <p className="text-xs text-[#86868B] font-medium tracking-wide">欢迎回来</p>
+                           <p className="text-sm font-semibold text-[#1D1D1F] mt-0.5 truncate">{user.name}</p>
+                           <p className="text-[10px] text-pink-600 bg-pink-50 inline-block px-1.5 py-0.5 rounded mt-1 font-bold">
+                             {user.role === 'ADMIN' ? '超级管理员' : user.role === 'DOCTOR' ? '专家医生' : '准妈妈'}
+                           </p>
+                        </div>
+                        
+                        {isAdmin && (
+                          <Link to="/admin/dashboard" onClick={() => setIsDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors">
+                            <LayoutDashboard className="w-4 h-4 text-gray-500" />
+                            管理后台
+                          </Link>
+                        )}
+                        
+                        {isDoctor && (
+                          <Link to="/doctor/editor" onClick={() => setIsDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors">
+                            <Settings className="w-4 h-4 text-gray-500" />
+                            我的发布
+                          </Link>
+                        )}
+
+                        <button 
+                          onClick={() => {
+                            logout();
+                            setIsDropdownOpen(false);
+                            navigate("/login");
+                          }}
+                          className="flex items-center gap-2 text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100 mt-1"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          退出登录
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="px-4 py-2 mb-1">
+                          <p className="text-sm text-gray-600">加入好孕学堂，获取更多专业知识</p>
+                        </div>
+                        <Link to="/login" onClick={() => setIsDropdownOpen(false)} className="mx-4 my-1 bg-pink-600 text-white text-center py-2 rounded-lg text-sm font-medium hover:bg-pink-700 transition-colors">
+                          立即登录
+                        </Link>
+                        <Link to="/register" onClick={() => setIsDropdownOpen(false)} className="text-center py-2 text-sm text-pink-600 hover:underline">
+                          注册新账号
+                        </Link>
+                      </>
                     )}
                  </div>
                )}

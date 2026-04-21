@@ -47,7 +47,9 @@ function getUserId(req: express.Request) {
 
 function getRole(req: express.Request) {
   const raw = (req.header("x-role") || "patient").trim().toLowerCase();
-  return raw === "doctor" || raw === "admin" ? raw : "patient";
+  if (raw === "admin") return Role.ADMIN;
+  if (raw === "doctor") return Role.DOCTOR;
+  return Role.VIEWER;
 }
 
 const stageTags = ["孕早期", "孕中期", "孕晚期", "新生儿", "婴幼儿"];
